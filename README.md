@@ -6,6 +6,16 @@ A custom Lovelace card that displays a hot water cylinder with a temperature gra
 
 ## Installation
 
+### HACS (recommended)
+
+1. Open **HACS** in your Home Assistant sidebar
+2. Click the three-dot menu (top right) → **Custom repositories**
+3. Add `https://github.com/videojedi/HA-card-tank` with category **Dashboard**
+4. Click **Install**
+5. Restart Home Assistant
+
+### Manual
+
 1. Copy `tank-card.js` to your Home Assistant `config/www/` folder
 2. Add the resource in **Settings > Dashboards > Resources**:
    - URL: `/local/tank-card.js`
