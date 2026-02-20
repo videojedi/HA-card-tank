@@ -1,6 +1,6 @@
 # Tank Card for Home Assistant
 
-A custom Lovelace card that displays a hot water cylinder with a temperature gradient. Shows top and bottom temperatures with a colour scale from blue (cold) to red (hot).
+A custom Lovelace card that displays a hot water cylinder with a temperature gradient. If you have an extra tall (>200L) tank this shows top and bottom temperatures with a colour scale from blue (cold) to red (hot).
 
 ![Tank Card Screenshot](Snapshot.png)
 
