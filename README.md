@@ -31,6 +31,7 @@ entity_bottom: sensor.hot_water_bottom_temperature
 name: Hot Water
 min_temp: 10
 max_temp: 65
+entity_boost: switch.immersion_heater
 ```
 
 ## Options
@@ -42,3 +43,4 @@ max_temp: 65
 | `name` | string | `Hot Water` | No | Card title |
 | `min_temp` | number | `10` | No | Minimum temperature for colour scale (°C) |
 | `max_temp` | number | `65` | No | Maximum temperature for colour scale (°C) |
+| `entity_boost` | string | — | No | Entity ID for boost heater toggle (e.g. `switch.*` or `input_boolean.*`) |

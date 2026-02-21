@@ -1,4 +1,4 @@
-const CARD_VERSION = '1.0.1';
+const CARD_VERSION = '1.1.0';
 const DEFAULT_MIN_TEMP = 10;
 const DEFAULT_MAX_TEMP = 65;
 const COLD_HUE = 210;
@@ -16,6 +16,35 @@ class TankCard extends HTMLElement {
       name: 'Hot Water',
       min_temp: DEFAULT_MIN_TEMP,
       max_temp: DEFAULT_MAX_TEMP,
+      entity_boost: '',
+    };
+  }
+
+  static getConfigForm() {
+    return {
+      schema: [
+        { name: 'name', selector: { text: {} } },
+        { name: 'entity_top', required: true, selector: { entity: { domain: 'sensor' } } },
+        { name: 'entity_bottom', required: true, selector: { entity: { domain: 'sensor' } } },
+        { name: 'entity_boost', selector: { entity: { domain: ['switch', 'input_boolean'] } } },
+        { name: 'min_temp', selector: { number: { min: 0, max: 100, step: 1, unit_of_measurement: '°C' } } },
+        { name: 'max_temp', selector: { number: { min: 0, max: 100, step: 1, unit_of_measurement: '°C' } } },
+      ],
+      assertConfig: (config) => {
+        if (!config.entity_top) throw new Error('entity_top is required');
+        if (!config.entity_bottom) throw new Error('entity_bottom is required');
+      },
+      computeLabel: (schema) => {
+        const labels = {
+          name: 'Card Title',
+          entity_top: 'Top Temperature Sensor',
+          entity_bottom: 'Bottom Temperature Sensor',
+          entity_boost: 'Boost Heater Switch (optional)',
+          min_temp: 'Minimum Temperature',
+          max_temp: 'Maximum Temperature',
+        };
+        return labels[schema.name] ?? schema.name;
+      },
     };
   }
 
@@ -35,6 +64,7 @@ class TankCard extends HTMLElement {
     // Reset cached values so next hass update redraws
     this._lastTopTemp = undefined;
     this._lastBottomTemp = undefined;
+    this._lastBoostOn = undefined;
 
     if (!this.shadowRoot) {
       this._buildCard();
@@ -52,6 +82,20 @@ class TankCard extends HTMLElement {
 
     const topTemp = this._parseTemp(topState);
     const bottomTemp = this._parseTemp(bottomState);
+
+    // Update boost button state
+    if (this._config.entity_boost && this._boostBtn) {
+      const boostState = hass.states[this._config.entity_boost];
+      const boostOn = boostState?.state === 'on';
+      if (boostOn !== this._lastBoostOn) {
+        this._lastBoostOn = boostOn;
+        this._boostBtn.style.background = boostOn
+          ? 'rgba(255, 160, 0, 0.9)' : 'rgba(120, 120, 120, 0.5)';
+        this._boostBtn.style.color = boostOn ? '#fff' : 'rgba(255,255,255,0.6)';
+        this._boostBtn.classList.toggle('active', boostOn);
+        this._boostBtn.title = boostOn ? 'Boost ON — tap to turn off' : 'Boost OFF — tap to turn on';
+      }
+    }
 
     if (topTemp === this._lastTopTemp && bottomTemp === this._lastBottomTemp) return;
     this._lastTopTemp = topTemp;
@@ -71,6 +115,14 @@ class TankCard extends HTMLElement {
 
   getCardSize() {
     return 4;
+  }
+
+  _toggleBoost() {
+    if (!this._hass || !this._config.entity_boost) return;
+    const [domain] = this._config.entity_boost.split('.');
+    this._hass.callService(domain, 'toggle', {
+      entity_id: this._config.entity_boost,
+    });
   }
 
   _parseTemp(stateObj) {
@@ -102,6 +154,34 @@ class TankCard extends HTMLElement {
         justify-content: center;
         align-items: center;
         padding: 16px 16px 24px;
+        gap: 12px;
+      }
+      .boost-btn {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        border: none;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(120, 120, 120, 0.5);
+        color: rgba(255,255,255,0.6);
+        transition: background 0.3s, color 0.3s;
+        flex-shrink: 0;
+      }
+      .boost-btn:active {
+        transform: scale(0.93);
+      }
+      .boost-btn.active {
+        animation: boost-pulse 2s ease-in-out infinite;
+      }
+      @keyframes boost-pulse {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(255, 160, 0, 0.6); }
+        50% { box-shadow: 0 0 12px 4px rgba(255, 160, 0, 0.3); }
+      }
+      .boost-btn ha-icon {
+        --mdc-icon-size: 28px;
       }
     `;
     shadow.appendChild(style);
@@ -111,6 +191,18 @@ class TankCard extends HTMLElement {
 
     const content = document.createElement('div');
     content.className = 'card-content';
+
+    if (this._config.entity_boost) {
+      this._boostBtn = document.createElement('button');
+      this._boostBtn.className = 'boost-btn';
+      this._boostBtn.title = 'Boost OFF — tap to turn on';
+      const icon = document.createElement('ha-icon');
+      icon.setAttribute('icon', 'mdi:lightning-bolt');
+      this._boostBtn.appendChild(icon);
+      this._boostBtn.addEventListener('click', () => this._toggleBoost());
+      content.appendChild(this._boostBtn);
+    }
+
     content.appendChild(this._buildSVG());
 
     this._haCard.appendChild(content);
@@ -190,6 +282,59 @@ class TankCard extends HTMLElement {
     sheen.setAttribute('ry', '15');
     sheen.setAttribute('fill', 'rgba(255,255,255,0.15)');
     svg.appendChild(sheen);
+
+    // Clip path to keep bubbles inside the tank body
+    const clipPath = document.createElementNS(SVG_NS, 'clipPath');
+    clipPath.setAttribute('id', 'tank-clip-' + uid);
+    const clipRect = document.createElementNS(SVG_NS, 'rect');
+    clipRect.setAttribute('x', '42');
+    clipRect.setAttribute('y', '22');
+    clipRect.setAttribute('width', '116');
+    clipRect.setAttribute('height', '256');
+    clipRect.setAttribute('rx', '58');
+    clipRect.setAttribute('ry', '58');
+    clipPath.appendChild(clipRect);
+    defs.appendChild(clipPath);
+
+    // Bubbling water — rising bubbles clipped to tank
+    const bubbleGroup = document.createElementNS(SVG_NS, 'g');
+    bubbleGroup.setAttribute('clip-path', `url(#tank-clip-${uid})`);
+    const bubbles = [
+      { cx: 75,  r: 4,   dur: '5s',   delay: '0s'   },
+      { cx: 110, r: 3,   dur: '4.2s', delay: '1.5s' },
+      { cx: 90,  r: 3.5, dur: '6s',   delay: '0.8s' },
+      { cx: 125, r: 2.5, dur: '4.8s', delay: '2.5s' },
+      { cx: 80,  r: 2,   dur: '5.5s', delay: '3.2s' },
+      { cx: 105, r: 3,   dur: '4.5s', delay: '1.2s' },
+      { cx: 135, r: 2,   dur: '5.8s', delay: '0.5s' },
+      { cx: 70,  r: 2.5, dur: '4s',   delay: '2s'   },
+    ];
+    for (const b of bubbles) {
+      const circle = document.createElementNS(SVG_NS, 'circle');
+      circle.setAttribute('cx', String(b.cx));
+      circle.setAttribute('cy', '270');
+      circle.setAttribute('r', String(b.r));
+      circle.setAttribute('fill', 'rgba(255, 255, 255, 0.25)');
+
+      const rise = document.createElementNS(SVG_NS, 'animate');
+      rise.setAttribute('attributeName', 'cy');
+      rise.setAttribute('values', '270;30');
+      rise.setAttribute('dur', b.dur);
+      rise.setAttribute('begin', b.delay);
+      rise.setAttribute('repeatCount', 'indefinite');
+      circle.appendChild(rise);
+
+      const fade = document.createElementNS(SVG_NS, 'animate');
+      fade.setAttribute('attributeName', 'opacity');
+      fade.setAttribute('values', '0;0.7;0.5;0');
+      fade.setAttribute('dur', b.dur);
+      fade.setAttribute('begin', b.delay);
+      fade.setAttribute('repeatCount', 'indefinite');
+      circle.appendChild(fade);
+
+      bubbleGroup.appendChild(circle);
+    }
+    svg.appendChild(bubbleGroup);
 
     // Top pipe stub
     const pipeTop = document.createElementNS(SVG_NS, 'rect');
