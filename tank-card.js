@@ -1,4 +1,4 @@
-const CARD_VERSION = '1.1.0';
+const CARD_VERSION = '1.2.0';
 const DEFAULT_MIN_TEMP = 10;
 const DEFAULT_MAX_TEMP = 65;
 const COLD_HUE = 210;
@@ -12,6 +12,7 @@ class TankCard extends HTMLElement {
   static getStubConfig() {
     return {
       entity_top: '',
+      entity_mid: '',
       entity_bottom: '',
       name: 'Hot Water',
       min_temp: DEFAULT_MIN_TEMP,
@@ -25,6 +26,7 @@ class TankCard extends HTMLElement {
       schema: [
         { name: 'name', selector: { text: {} } },
         { name: 'entity_top', required: true, selector: { entity: { domain: 'sensor' } } },
+        { name: 'entity_mid', selector: { entity: { domain: 'sensor' } } },
         { name: 'entity_bottom', required: true, selector: { entity: { domain: 'sensor' } } },
         { name: 'entity_boost', selector: { entity: { domain: ['switch', 'input_boolean'] } } },
         { name: 'min_temp', selector: { number: { min: 0, max: 100, step: 1, unit_of_measurement: '°C' } } },
@@ -38,6 +40,7 @@ class TankCard extends HTMLElement {
         const labels = {
           name: 'Card Title',
           entity_top: 'Top Temperature Sensor',
+          entity_mid: 'Middle Temperature Sensor (optional)',
           entity_bottom: 'Bottom Temperature Sensor',
           entity_boost: 'Boost Heater Switch (optional)',
           min_temp: 'Minimum Temperature',
@@ -63,10 +66,19 @@ class TankCard extends HTMLElement {
 
     // Reset cached values so next hass update redraws
     this._lastTopTemp = undefined;
+    this._lastMidTemp = undefined;
     this._lastBottomTemp = undefined;
     this._lastBoostOn = undefined;
 
+    const structureChanged = this.shadowRoot && (
+      this._builtWithMid !== !!this._config.entity_mid ||
+      this._builtWithBoost !== !!this._config.entity_boost
+    );
+
     if (!this.shadowRoot) {
+      this._buildCard();
+    } else if (structureChanged) {
+      this.shadowRoot.replaceChildren();
       this._buildCard();
     } else {
       this._haCard.header = this._config.name;
@@ -78,9 +90,11 @@ class TankCard extends HTMLElement {
     if (!this._config) return;
 
     const topState = hass.states[this._config.entity_top];
+    const midState = this._config.entity_mid ? hass.states[this._config.entity_mid] : null;
     const bottomState = hass.states[this._config.entity_bottom];
 
     const topTemp = this._parseTemp(topState);
+    const midTemp = this._parseTemp(midState);
     const bottomTemp = this._parseTemp(bottomState);
 
     // Update boost button state
@@ -97,12 +111,16 @@ class TankCard extends HTMLElement {
       }
     }
 
-    if (topTemp === this._lastTopTemp && bottomTemp === this._lastBottomTemp) return;
+    if (topTemp === this._lastTopTemp && midTemp === this._lastMidTemp && bottomTemp === this._lastBottomTemp) return;
     this._lastTopTemp = topTemp;
+    this._lastMidTemp = midTemp;
     this._lastBottomTemp = bottomTemp;
 
     this._gradientStopTop.setAttribute('stop-color', this._tempToColour(topTemp));
     this._gradientStopBottom.setAttribute('stop-color', this._tempToColour(bottomTemp));
+    if (this._gradientStopMid) {
+      this._gradientStopMid.setAttribute('stop-color', this._tempToColour(midTemp));
+    }
 
     const topUnit = topState?.attributes?.unit_of_measurement || '°C';
     const bottomUnit = bottomState?.attributes?.unit_of_measurement || '°C';
@@ -111,6 +129,11 @@ class TankCard extends HTMLElement {
       ? `${topTemp.toFixed(1)} ${topUnit}` : '—';
     this._bottomTempText.textContent = bottomTemp !== null
       ? `${bottomTemp.toFixed(1)} ${bottomUnit}` : '—';
+    if (this._midTempText) {
+      const midUnit = midState?.attributes?.unit_of_measurement || '°C';
+      this._midTempText.textContent = midTemp !== null
+        ? `${midTemp.toFixed(1)} ${midUnit}` : '—';
+    }
   }
 
   getCardSize() {
@@ -143,7 +166,9 @@ class TankCard extends HTMLElement {
   }
 
   _buildCard() {
-    const shadow = this.attachShadow({ mode: 'open' });
+    const shadow = this.shadowRoot || this.attachShadow({ mode: 'open' });
+    this._builtWithMid = !!this._config.entity_mid;
+    this._builtWithBoost = !!this._config.entity_boost;
 
     const style = document.createElement('style');
     style.textContent = `
@@ -239,6 +264,14 @@ class TankCard extends HTMLElement {
     this._gradientStopBottom.setAttribute('stop-color', 'hsl(210, 10%, 70%)');
 
     grad.appendChild(this._gradientStopTop);
+    if (this._config.entity_mid) {
+      this._gradientStopMid = document.createElementNS(SVG_NS, 'stop');
+      this._gradientStopMid.setAttribute('offset', '50%');
+      this._gradientStopMid.setAttribute('stop-color', 'hsl(210, 10%, 70%)');
+      grad.appendChild(this._gradientStopMid);
+    } else {
+      this._gradientStopMid = null;
+    }
     grad.appendChild(this._gradientStopBottom);
     defs.appendChild(grad);
 
@@ -367,6 +400,22 @@ class TankCard extends HTMLElement {
     this._topTempText.setAttribute('filter', 'url(#shadow-' + uid + ')');
     this._topTempText.textContent = '—';
     svg.appendChild(this._topTempText);
+
+    // Mid temperature text (optional)
+    if (this._config.entity_mid) {
+      this._midTempText = document.createElementNS(SVG_NS, 'text');
+      this._midTempText.setAttribute('x', '100');
+      this._midTempText.setAttribute('y', '162');
+      this._midTempText.setAttribute('text-anchor', 'middle');
+      this._midTempText.setAttribute('font-size', '22');
+      this._midTempText.setAttribute('font-weight', 'bold');
+      this._midTempText.setAttribute('fill', 'white');
+      this._midTempText.setAttribute('filter', 'url(#shadow-' + uid + ')');
+      this._midTempText.textContent = '—';
+      svg.appendChild(this._midTempText);
+    } else {
+      this._midTempText = null;
+    }
 
     // Bottom temperature text
     this._bottomTempText = document.createElementNS(SVG_NS, 'text');
