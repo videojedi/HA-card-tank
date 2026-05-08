@@ -1,4 +1,4 @@
-const CARD_VERSION = '1.2.0';
+const CARD_VERSION = '1.2.1';
 const DEFAULT_MIN_TEMP = 10;
 const DEFAULT_MAX_TEMP = 65;
 const COLD_HUE = 210;
@@ -32,10 +32,6 @@ class TankCard extends HTMLElement {
         { name: 'min_temp', selector: { number: { min: 0, max: 100, step: 1, unit_of_measurement: '°C' } } },
         { name: 'max_temp', selector: { number: { min: 0, max: 100, step: 1, unit_of_measurement: '°C' } } },
       ],
-      assertConfig: (config) => {
-        if (!config.entity_top) throw new Error('entity_top is required');
-        if (!config.entity_bottom) throw new Error('entity_bottom is required');
-      },
       computeLabel: (schema) => {
         const labels = {
           name: 'Card Title',
