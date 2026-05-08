@@ -1,4 +1,4 @@
-const CARD_VERSION = '1.2.1';
+const CARD_VERSION = '1.2.2';
 const DEFAULT_MIN_TEMP = 10;
 const DEFAULT_MAX_TEMP = 65;
 const COLD_HUE = 210;
@@ -437,7 +437,7 @@ if (!customElements.get('tank-card')) {
     type: 'tank-card',
     name: 'Tank Card',
     description: 'Displays a hot water cylinder with temperature gradient',
-    preview: false,
+    preview: true,
   });
 
   console.info(
