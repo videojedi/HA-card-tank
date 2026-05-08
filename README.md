@@ -1,6 +1,6 @@
 # Tank Card for Home Assistant
 
-A custom Lovelace card that displays a hot water cylinder with a temperature gradient. If you have an extra tall (>200L) tank this shows top and bottom temperatures with a colour scale from blue (cold) to red (hot).
+A custom Lovelace card that displays a hot water cylinder with a temperature gradient. If you have an extra tall (>200L) tank this shows top, optional middle, and bottom temperatures with a colour scale from blue (cold) to red (hot).
 
 ![Tank Card Screenshot](Snapshot.png)
 
@@ -27,6 +27,7 @@ A custom Lovelace card that displays a hot water cylinder with a temperature gra
 ```yaml
 type: custom:tank-card
 entity_top: sensor.hot_water_top_temperature
+entity_mid: sensor.hot_water_middle_temperature
 entity_bottom: sensor.hot_water_bottom_temperature
 name: Hot Water
 min_temp: 10
@@ -39,6 +40,7 @@ entity_boost: switch.immersion_heater
 | Option | Type | Default | Required | Description |
 |---|---|---|---|---|
 | `entity_top` | string | — | Yes | Entity ID for the top temperature sensor |
+| `entity_mid` | string | — | No | Entity ID for an optional middle temperature sensor — adds a third gradient stop and centre readout |
 | `entity_bottom` | string | — | Yes | Entity ID for the bottom temperature sensor |
 | `name` | string | `Hot Water` | No | Card title |
 | `min_temp` | number | `10` | No | Minimum temperature for colour scale (°C) |
